@@ -3,8 +3,6 @@ export interface HudState {
   catchRate: number; // 0..1
   rare: boolean;
   collected: number;
-  lastCatch: string | null;
-  message: string;
 }
 
 export class Hud {

@@ -1,14 +1,14 @@
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { CAB, CLAW } from './config';
 
-export type DollDef = { id: number; name: string; file: string };
+/** 一只宝可梦（图鉴数据） */
+export type PokeDef = { id: number; name: string; file: string; type?: string };
 
-export interface Doll {
-  id: number;
-  name: string;
+/** 一颗精灵球：def 是里面装着的宝可梦，抓之前不显示 */
+export interface Ball {
+  def: PokeDef;
   mesh: any; // THREE.Sprite
   body: RAPIER.RigidBody;
-  lastPos: { x: number; y: number; z: number };
 }
 
 export const BOUNDS = {

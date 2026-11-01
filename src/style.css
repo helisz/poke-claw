@@ -220,3 +220,104 @@ body:not(.ready) #toast { opacity: 1; }
 @media (min-width: 720px) {
   #app { max-width: 520px; margin: 0 auto; box-shadow: 0 0 40px rgba(47, 79, 143, 0.2); }
 }
+
+
+/* ============ 宝可梦卡片 ============ */
+#card-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 32, 60, 0.55);
+  backdrop-filter: blur(3px);
+  padding: 24px;
+}
+#card-overlay.show { display: flex; }
+
+.card-wrap {
+  position: relative;
+  width: min(300px, 82vw);
+  padding: 16px 16px 18px;
+  border-radius: 20px;
+  border: 3px solid var(--ink);
+  background: linear-gradient(170deg, #ffffff 0%, #e6f3ff 55%, #d3e9fb 100%);
+  box-shadow: 0 12px 0 rgba(47, 79, 143, 0.35), 0 20px 40px rgba(0, 0, 0, 0.3);
+  text-align: center;
+  overflow: hidden;
+  animation: cardIn 0.42s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+@keyframes cardIn {
+  from { transform: scale(0.6) rotate(-6deg); opacity: 0; }
+  to { transform: scale(1) rotate(0); opacity: 1; }
+}
+.card-wrap.rare {
+  background: linear-gradient(170deg, #fff9e0 0%, #ffeeb5 45%, #ffd84d 100%);
+  border-color: #8a6a00;
+  box-shadow: 0 12px 0 rgba(138, 106, 0, 0.4), 0 0 34px rgba(255, 216, 77, 0.85);
+}
+.card-shine {
+  position: absolute;
+  inset: -40% -10% auto -10%;
+  height: 70%;
+  background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.55) 48%, transparent 62%);
+  pointer-events: none;
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  opacity: 0.8;
+}
+.card-rare {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #b8860b;
+  color: #fff;
+  font-size: 10px;
+}
+.card-art {
+  display: grid;
+  place-items: center;
+  height: 150px;
+  margin: 6px 0 2px;
+}
+.card-art img {
+  width: 132px;
+  height: 132px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 6px 8px rgba(47, 79, 143, 0.3));
+  animation: float 2.6s ease-in-out infinite;
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.card-name {
+  font-size: 21px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+.card-type { font-size: 12px; height: 16px; opacity: 0.75; font-weight: 700; }
+.card-type i { font-style: normal; }
+.card-btn {
+  margin-top: 12px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 14px;
+  border: 2px solid var(--green-dark);
+  background: linear-gradient(to bottom, var(--green-light), var(--green));
+  color: #fff;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-shadow: 0 2px 0 var(--green-dark);
+  box-shadow: 0 4px 0 var(--green-dark), inset 0 2px 0 rgba(255,255,255,0.5);
+  cursor: pointer;
+}
+.card-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--green-dark); }

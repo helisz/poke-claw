@@ -1,15 +1,17 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { CAB, CLAW, withinGrabReach } from './config';
+import { BALL, CAB, CLAW, withinGrabReach } from './config';
 import { Claw } from './Claw';
-import { DollView } from './Dolls';
+import { BallView } from './Balls';
 import { buildBackdrop, buildLights, buildMachine } from './Machine';
-import { Hud, type HudState } from './Hud';
-import { clampAxis, type Doll, type DollDef } from './types';
+import { Hud } from './Hud';
+import { showCard } from './Card';
+import { isRare } from './Card';
+import { clampAxis, type Ball, type PokeDef } from './types';
 
-type Phase = 'move' | 'drop' | 'closing' | 'rising';
+type Phase = 'move' | 'drop' | 'closing' | 'rising' | 'reveal';
 
-const HUD_RARE_IDS = new Set([144, 145, 146, 150, 151, 243, 244, 245, 249, 250, 384, 483, 484]);
+const BALL_COUNT = 12;
 
 export class Game {
   private renderer: THREE.WebGLRenderer;
@@ -17,17 +19,17 @@ export class Game {
   private camera: THREE.OrthographicCamera;
   private world!: RAPIER.World;
   private claw: Claw;
-  private dollView!: DollView;
+  private ballView!: BallView;
   private hud = new Hud();
 
   private phase: Phase = 'move';
-  private grabbed: Doll | null = null;
+  private grabbed: Ball | null = null;
   private round = 1;
   private collected = 0;
-  private rare = false;
   private keys = new Set<string>();
   private grabOffset = new THREE.Vector3();
   private lastTime = 0;
+  private lastPool: PokeDef[] | null = null;
 
   constructor(private mount: HTMLElement) {
     const w = mount.clientWidth || 520;
@@ -60,26 +62,24 @@ export class Game {
     await RAPIER.init();
     this.world = new RAPIER.World({ x: 0, y: -9.82, z: 0 });
     this.buildWalls();
-    this.dollView = new DollView(this.scene, this.world);
+    this.ballView = new BallView(this.scene, this.world);
 
     const manifest = await (await fetch('./assets/pokemon-manifest.json')).json();
-    const all: DollDef[] = manifest.pokemon.map((p: any) => ({ id: p.id, name: p.name, file: p.file }));
-    const rarePool = all.filter((p) => HUD_RARE_IDS.has(p.id));
-    const commonPool = all.filter((p) => !HUD_RARE_IDS.has(p.id));
-    const pick = <T,>(arr: T[], n: number) => [...arr].sort(() => Math.random() - 0.5).slice(0, n);
-    const lineup: DollDef[] = [...pick(commonPool, 12), ...pick(rarePool.length ? rarePool : all, 2)];
-    lineup.sort(() => Math.random() - 0.5);
+    const all: PokeDef[] = manifest.pokemon.map((p: any) => ({ id: p.id, name: p.name, file: p.file, type: p.type }));
+    this.lastPool = all;
+    this.spawnRound(all);
 
-    await this.dollView.preload(lineup.map((d) => d.file));
-
-    const spots = DollView.chunk(lineup);
-    lineup.forEach((def, i) => this.dollView.spawn(def, spots[i]));
-
-    this.rare = lineup.some((d) => HUD_RARE_IDS.has(d.id));
-    this.refreshHud('移动爪子上方，按 空格 或「停止钩爪」下爪');
+    this.refreshHud();
     document.body.classList.add('ready');
     this.lastTime = performance.now();
     requestAnimationFrame(this.loop);
+  }
+
+  /** 摆一批球：球里装着的宝可梦由 manifesto 随机抽，抓之前看不见 */
+  private spawnRound(all: PokeDef[]) {
+    const pool = [...all].sort(() => Math.random() - 0.5).slice(0, BALL_COUNT);
+    const spots = BallView.layout(pool.length);
+    pool.forEach((def, i) => this.ballView.spawn(def, spots[i]));
   }
 
   private buildWalls() {
@@ -94,12 +94,12 @@ export class Game {
         .setTranslation(x, y, z);
       this.world.createCollider(desc, body);
     };
-    add(W, 0.02, D, 0, -0.16, 0); // 舱底（低于取物口，掉出去即判入袋）
+    add(W, 0.02, D, 0, -0.16, 0); // 舱底
     add(0.02, H, D, -W, H / 2, 0);
     add(0.02, H, D, W, H / 2, 0);
     add(W, H, 0.02, 0, H / 2, -D);
-    add(W, 0.2, 0.02, 0, -0.06, D); // 前挡板
-    add(W, 0.02, D, 0, CAB.ceilY + 0.1, 0); // 天花板
+    add(W, 0.2, 0.02, 0, -0.06, D);
+    add(W, 0.02, D, 0, CAB.ceilY + 0.1, 0);
   }
 
   private bindInput() {
@@ -165,7 +165,15 @@ export class Game {
 
   private updateActionLabel() {
     const btn = document.getElementById('action-btn')!;
-    btn.textContent = this.phase === 'move' ? '停止钩爪' : this.phase === 'rising' ? '上升中…' : '抓取中…';
+    const map: Record<Phase, string> = {
+      move: '停止钩爪',
+      drop: '抓取中…',
+      closing: '抓取中…',
+      rising: '上升中…',
+      reveal: '收下…',
+    };
+    btn.textContent = map[this.phase];
+    btn.toggleAttribute('disabled', this.phase === 'reveal');
   }
 
   private keyMove(dt: number) {
@@ -185,18 +193,18 @@ export class Game {
     );
   }
 
-  private tryGrab(): Doll | null {
+  /** 找出爪心罩得住、且离爪心最近的球 */
+  private tryGrab(): Ball | null {
     const c = this.claw.position;
-    let best: Doll | null = null;
-    let bestScore = Infinity;
-    for (const d of this.dollView.dolls) {
-      const t = d.body.translation();
-      if (!withinGrabReach({ x: c.x, y: c.y, z: c.z }, t)) continue;
-      const planar = Math.hypot(c.x - t.x, c.z - t.z);
-      const score = planar + Math.abs(t.y - (c.y - 0.1)) * 0.4;
-      if (score < bestScore) {
-        bestScore = score;
-        best = d;
+    let best: Ball | null = null;
+    let bestD = Infinity;
+    for (const b of this.ballView.balls) {
+      const t = b.body.translation();
+      if (!withinGrabReach({ x: c.x, z: c.z }, t)) continue;
+      const d = Math.hypot(c.x - t.x, c.z - t.z);
+      if (d < bestD) {
+        bestD = d;
+        best = b;
       }
     }
     return best;
@@ -221,7 +229,7 @@ export class Game {
     }
 
     if (this.phase === 'closing') {
-      p.y = Math.max(-0.04, p.y - 0.22 * dt); // 闭合时下压，卡住娃娃
+      p.y = Math.max(-0.05, p.y - 0.2 * dt);
       this.claw.setPosition(p.x, p.y, p.z);
       if (this.claw.open < 0.08) {
         this.grabbed = this.tryGrab();
@@ -238,48 +246,82 @@ export class Game {
       return;
     }
 
-    // rising
-    p.y = Math.min(CLAW.restY, p.y + CLAW.riseSpeed * dt);
-    this.claw.setPosition(p.x, p.y, p.z);
-    if (this.grabbed) {
-      const t = this.grabbed.body.translation();
-      const tx = p.x + this.grabOffset.x;
-      const ty = p.y + Math.min(this.grabOffset.y, -0.07);
-      const tz = p.z + this.grabOffset.z;
-      this.grabbed.body.setTranslation(
-        { x: t.x + (tx - t.x) * 0.35, y: t.y + (ty - t.y) * 0.5, z: t.z + (tz - t.z) * 0.35 },
-        true,
-      );
+    if (this.phase === 'rising') {
+      p.y = Math.min(CLAW.restY, p.y + CLAW.riseSpeed * dt);
+      this.claw.setPosition(p.x, p.y, p.z);
+      if (this.grabbed) {
+        const t = this.grabbed.body.translation();
+        const tx = p.x + this.grabOffset.x;
+        const ty = p.y + Math.min(this.grabOffset.y, -0.08);
+        const tz = p.z + this.grabOffset.z;
+        this.grabbed.body.setTranslation(
+          { x: t.x + (tx - t.x) * 0.4, y: t.y + (ty - t.y) * 0.5, z: t.z + (tz - t.z) * 0.4 },
+          true,
+        );
+      }
+      if (p.y >= CLAW.restY) this.finishDrop();
     }
-    if (p.y >= CLAW.restY) this.finishDrop();
   }
 
+  /** 抓起来=得手：球消失，弹出卡片 */
   private finishDrop() {
     const got = this.grabbed;
     this.grabbed = null;
-    if (got) {
-      got.body.setGravityScale(1, true);
-      got.body.applyImpulse({ x: 0, y: -0.03, z: 0.05 }, true);
-    }
     this.phase = 'move';
     this.claw.setOpen(1);
-    this.round += 1;
-    this.refreshHud(got ? `抓到了 ${got.name}！` : '爪子空了…再试试');
+
+    if (!got) {
+      this.updateActionLabel();
+      this.hud.toast('爪子空了…再试试');
+      return;
+    }
+
+    // 球飞向取物口后消失
+    const t = got.body.translation();
+    got.body.setTranslation({ x: t.x, y: -0.5, z: t.z }, true);
+    this.removeBall(got);
+
+    this.phase = 'reveal';
     this.updateActionLabel();
+    this.hud.toast(`抓到一颗球！`, 900);
+    setTimeout(() => {
+      this.phase = 'reveal';
+      showCard(got.def, {
+        collect: () => {
+          this.collected += 1;
+          this.refreshHud();
+        },
+        next: () => this.afterReveal(),
+      });
+    }, 420);
   }
 
-  private refreshHud(msg: string) {
-    const total = this.dollView ? this.dollView.dolls.length : 0;
-    const state: HudState = {
+  private removeBall(target: Ball) {
+    const idx = this.ballView.balls.indexOf(target);
+    if (idx >= 0) this.ballView.balls.splice(idx, 1);
+    this.scene.remove(target.mesh);
+    this.world.removeRigidBody(target.body);
+  }
+
+  private afterReveal() {
+    this.round += 1;
+    this.phase = 'move';
+    this.updateActionLabel();
+    if (this.ballView.balls.length < 4) {
+      this.spawnRound(this.lastPool ?? []);
+      this.hud.toast('补充新一批精灵球', 1200);
+    }
+    this.refreshHud();
+  }
+
+  private refreshHud() {
+    const total = this.ballView ? this.ballView.balls.length : 0;
+    this.hud.render({
       round: this.round,
-      catchRate: Math.min(0.95, 0.3 + total * 0.045),
-      rare: this.rare,
+      catchRate: Math.min(0.95, 0.25 + total * 0.05),
+      rare: this.ballView ? this.ballView.balls.some((b) => isRare(b.def.id)) : false,
       collected: this.collected,
-      lastCatch: null,
-      message: msg,
-    };
-    this.hud.render(state);
-    this.hud.toast(msg);
+    });
   }
 
   private resize() {
@@ -303,13 +345,7 @@ export class Game {
     this.stepClaw(dt);
     this.world.timestep = dt;
     this.world.step();
-    this.dollView.sync(null, null);
-
-    const fallen = this.dollView.collectFallen();
-    if (fallen.length) {
-      this.collected += fallen.length;
-      this.refreshHud(`入袋：${fallen.map((d) => d.name).join('、')}`);
-    }
+    this.ballView.sync();
 
     this.renderer.render(this.scene, this.camera);
     requestAnimationFrame(this.loop);
