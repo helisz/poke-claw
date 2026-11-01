@@ -124,6 +124,14 @@ export class BallView {
     this.world.removeRigidBody(target.body);
   }
 
+  /** 全部静止后切成固定刚体：不再抖、省 CPU，且不影响抓取判定 */
+  freezeSettled() {
+    for (const bl of this.balls) {
+      const v = bl.body.linvel();
+      if (Math.hypot(v.x, v.y, v.z) < 0.08) bl.body.setBodyType(RAPIER.RigidBodyType.Fixed, true);
+    }
+  }
+
   /** 是否已经全部静止（判断"倒球动画"结束） */
   settled(): boolean {
     return this.balls.every((b) => {

@@ -29,10 +29,8 @@ export class Game {
   private keys = new Set<string>();
   private grabOffset = new THREE.Vector3();
   private lastTime = 0;
+  private freezeAt = 0;
   private lastPool: PokeDef[] | null = null;
-  private ballViewScaleInit = false;
-  private pouring = false;
-  private pourUntil = 0;
 
   constructor(private mount: HTMLElement) {
     const w = mount.clientWidth || 520;
@@ -40,8 +38,8 @@ export class Game {
     const aspect = w / h;
     const halfH = 1.15;
     this.camera = new THREE.OrthographicCamera(-halfH * aspect, halfH * aspect, halfH, -halfH, 0.1, 60);
-    this.camera.position.set(0, 2.5, 3.0);
-    this.camera.lookAt(0, 0.5, 0);
+    this.camera.position.set(0, 2.62, 2.95);
+    this.camera.lookAt(0, 0.56, 0);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -58,7 +56,6 @@ export class Game {
 
     window.addEventListener('resize', () => this.resize());
     this.bindInput();
-    this.ballViewScaleInit = true;
     void this.boot();
   }
 
@@ -95,8 +92,6 @@ export class Game {
       const z = (Math.random() - 0.5) * spanZ * 1.2;
       this.ballView.spawn(def, { x, z }, 0);
     });
-    this.pouring = true;
-    this.pourUntil = performance.now() + 2600;
   }
 
   private buildWalls() {
@@ -148,37 +143,11 @@ export class Game {
       btn.addEventListener('pointercancel', up);
     });
 
-    const dom = this.renderer.domElement;
-    let dragging = false;
-    const toPlane = (cx: number, cy: number) => {
-      const r = dom.getBoundingClientRect();
-      const nx = ((cx - r.left) / r.width) * 2 - 1;
-      const ny = -(((cy - r.top) / r.height) * 2 - 1);
-      const v = new THREE.Vector3(nx, ny, 0).unproject(this.camera);
-      const dir = v.sub(this.camera.position).normalize();
-      const t = (0.05 - this.camera.position.y) / dir.y;
-      return new THREE.Vector3(this.camera.position.x + dir.x * t, 0, this.camera.position.z + dir.z * t);
-    };
-    dom.addEventListener('pointerdown', (e: PointerEvent) => {
-      if (this.phase !== 'move') return;
-      dragging = true;
-      const w = toPlane(e.clientX, e.clientY);
-      this.claw.setPosition(clampAxis(w.x, 'x'), CLAW.restY, clampAxis(w.z, 'z'));
-    });
-    dom.addEventListener('pointermove', (e: PointerEvent) => {
-      if (!dragging || this.phase !== 'move') return;
-      const w = toPlane(e.clientX, e.clientY);
-      this.claw.setPosition(clampAxis(w.x, 'x'), CLAW.restY, clampAxis(w.z, 'z'));
-    });
-    window.addEventListener('pointerup', () => (dragging = false));
+    // 只允许用方向键/方向按钮控制，不接受屏幕拖动
   }
 
   private onAction() {
     if (this.phase !== 'move') return;
-    if (this.pouring) {
-      this.hud.toast('等球落稳…', 900);
-      return;
-    }
     this.phase = 'drop';
     this.claw.setOpen(1);
     this.updateActionLabel();
@@ -257,6 +226,7 @@ export class Game {
         if (this.grabbed) {
           const t = this.grabbed.body.translation();
           this.grabOffset.set(t.x - p.x, t.y - p.y, t.z - p.z);
+          this.grabbed.body.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
           this.grabbed.body.setGravityScale(0, true);
           this.grabbed.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
           this.grabbed.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
@@ -366,6 +336,10 @@ export class Game {
     this.world.timestep = dt;
     this.world.step();
     this.ballView.sync();
+    if (now > this.freezeAt) {
+      this.ballView.freezeSettled();
+      this.freezeAt = now + 250;
+    }
 
     this.renderer.render(this.scene, this.camera);
     requestAnimationFrame(this.loop);

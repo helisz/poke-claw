@@ -36,9 +36,9 @@ export function buildMachine(scene: THREE.Scene): THREE.Group {
   back.position.set(0, H / 2, -D / 2 - 0.02);
   root.add(back);
 
-  // 顶棚
-  const top = new THREE.Mesh(new THREE.BoxGeometry(W + 0.24, 0.12, D + 0.24), mat(PALETTE.red));
-  top.position.y = H + 0.06;
+  // 顶棚：缩进放后，避免俯视时遮住爪子
+  const top = new THREE.Mesh(new THREE.BoxGeometry(W + 0.24, 0.1, D + 0.06), mat(PALETTE.red));
+  top.position.set(0, H + 0.05, -0.1);
   root.add(top);
 
   // 顶棚黄色铆钉
@@ -46,7 +46,7 @@ export function buildMachine(scene: THREE.Scene): THREE.Group {
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
       const s = new THREE.Mesh(studGeo, mat(PALETTE.yellow, { roughness: 0.4 }));
-      s.position.set((sx * (W + 0.2)) / 2, H + 0.12, (sz * (D + 0.2)) / 2);
+      s.position.set((sx * (W + 0.2)) / 2, H + 0.11, (sz * (D + 0.02)) / 2 - 0.1);
       root.add(s);
     }
   }
