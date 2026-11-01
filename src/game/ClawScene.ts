@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { CAB, CLAW, GAME, H, RARE_IDS, W } from '../config';
 import { PokePit, type Poke, type PokeDef, type HullData } from './PokePit';
 import { scaleOf } from './Size';
-import { drawMachine } from './Machine';
+import { drawBackdrop, drawMachine } from './Machine';
 
 type Phase = 'idle' | 'dropping' | 'closing' | 'rising';
 
@@ -50,18 +50,30 @@ export class ClawScene extends Phaser.Scene {
 
   private pokeDefs: PokeDef[] = [];
 
-  async create() {
-    // 读 manifest 拿名字/文件
-    const manifest = await (await fetch('./assets/pokemon-manifest.json')).json();
-    this.pokeDefs = manifest.pokemon;
+  create() {
+    // 先画不依赖网络的东西，保证首帧就有画面
+    const bg = this.add.graphics();
+    drawBackdrop(bg);
+    bg.setDepth(-10);
 
     this.machine = this.add.graphics();
     drawMachine(this.machine);
+    this.machine.setDepth(0);
 
-    this.grabLayer = this.add.container(0, 0);
-    this.clawLayer = this.add.container(0, 0);
+    this.grabLayer = this.add.container(0, 0).setDepth(10);
+    this.clawLayer = this.add.container(0, 0).setDepth(20);
 
     this.pit = new PokePit(this);
+    this.bindInput();
+    this.refreshHud();
+
+    // 网络数据异步加载，到了再补宝可梦
+    void this.bootPokes();
+  }
+
+  private async bootPokes() {
+    const manifest = await (await fetch('./assets/pokemon-manifest.json')).json();
+    this.pokeDefs = manifest.pokemon;
 
     const hulls = this.cache.json.get('hulls') as Record<string, HullData>;
     const { innerX, innerY, innerW } = CAB;
@@ -74,9 +86,6 @@ export class ClawScene extends Phaser.Scene {
       const p = this.pit.spawnOne(def, hull, x, y);
       this.grabLayer.add(p.sprite);
     });
-
-    this.bindInput();
-    this.refreshHud();
   }
 
   private bindInput() {
