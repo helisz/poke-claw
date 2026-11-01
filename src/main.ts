@@ -1,4 +1,4 @@
-// 入口占位：玩法定下后在此挂游戏启动逻辑。
-import { ALL_IDS } from './data/pokemon';
+import { Game } from './game/Game';
+import './style.css';
 
-console.log(`poke-claw ready · ${ALL_IDS.length} sprites`);
+Game.start();

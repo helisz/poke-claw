@@ -2,23 +2,53 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>poke-claw</title>
-    <style>
-      html, body { margin: 0; height: 100%; background: #0b1220; color: #e8f1ff;
-        font-family: system-ui, -apple-system, "PingFang SC", sans-serif; }
-      #app { display: grid; place-items: center; height: 100%; text-align: center; padding: 24px; }
-      a { color: #449ddf; }
-      p { color: #8aa0bd; font-size: 14px; line-height: 1.7; }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#cfe7f7" />
+    <title>poke-claw · 抓娃娃</title>
   </head>
   <body>
     <div id="app">
-      <div>
-        <h1 style="font-size:22px;margin:0 0 8px">poke-claw</h1>
-        <p>资产已就绪：166 只宝可梦 · 64×64<br />
-          玩法设计待定 → <a href="./catalog.html">查看资产清单</a></p>
-      </div>
+      <!-- 顶部 HUD -->
+      <header id="hud">
+        <div class="hud-left">
+          <div class="badge">SE586</div>
+        </div>
+        <div class="hud-right">
+          <div class="card">
+            <button id="reset-btn" class="close" title="重开">×</button>
+            <div class="row"><span class="k">回合</span><b id="hud-round">1</b></div>
+            <div class="pips">
+              <i class="pip"></i><i class="pip"></i><i class="pip"></i><i class="pip"></i><i class="pip"></i>
+            </div>
+            <div class="row big"><span class="k">捕获率</span><b id="hud-rate" class="hl">40%</b></div>
+            <div class="sep"></div>
+            <div class="row"><span class="ball small"></span><b id="hud-rare">普通</b></div>
+            <div class="row got"><span class="k">已收</span><b id="hud-got">0</b></div>
+          </div>
+        </div>
+      </header>
+
+      <!-- 3D 舞台 -->
+      <div id="stage"></div>
+
+      <!-- 提示 -->
+      <div id="toast"></div>
+
+      <!-- 底部操作 -->
+      <footer id="controls">
+        <div class="dpad">
+          <button data-key="KeyW" class="d up">▲</button>
+          <div class="mid">
+            <button data-key="KeyA" class="d left">◀</button>
+            <button data-key="KeyS" class="d down">▼</button>
+            <button data-key="KeyD" class="d right">▶</button>
+          </div>
+        </div>
+        <div class="center">
+          <button id="action-btn">停止钩爪</button>
+          <div class="hint">WASD / 方向键移动 · 可拖动屏幕</div>
+        </div>
+      </footer>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
