@@ -36,17 +36,22 @@ export function buildMachine(scene: THREE.Scene): THREE.Group {
   back.position.set(0, H / 2, -D / 2 - 0.02);
   root.add(back);
 
-  // 顶棚：缩进放后，避免俯视时遮住爪子
-  const top = new THREE.Mesh(new THREE.BoxGeometry(W + 0.24, 0.1, D + 0.06), mat(PALETTE.red));
-  top.position.set(0, H + 0.05, -0.1);
-  root.add(top);
+  // 顶棚：只留后侧一条横梁，前侧完全敞开，爪子根部不被遮挡
+  const topBeam = new THREE.Mesh(new THREE.BoxGeometry(W + 0.24, 0.1, 0.18), mat(PALETTE.red));
+  topBeam.position.set(0, H + 0.05, -D / 2 + 0.06);
+  root.add(topBeam);
+
+  // 顶棚右侧延伸板（造型，不压爪子上方）
+  const topDeck = new THREE.Mesh(new THREE.BoxGeometry(W + 0.24, 0.06, D * 0.34), mat(PALETTE.red));
+  topDeck.position.set(0, H + 0.03, -D / 2 + 0.28);
+  root.add(topDeck);
 
   // 顶棚黄色铆钉
   const studGeo = new THREE.SphereGeometry(0.035, 12, 10);
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
       const s = new THREE.Mesh(studGeo, mat(PALETTE.yellow, { roughness: 0.4 }));
-      s.position.set((sx * (W + 0.2)) / 2, H + 0.11, (sz * (D + 0.02)) / 2 - 0.1);
+      s.position.set((sx * (W + 0.2)) / 2, H + 0.11, -D / 2 + 0.06);
       root.add(s);
     }
   }
