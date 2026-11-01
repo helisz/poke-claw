@@ -4,5 +4,5 @@ export default defineConfig({
   base: './',
   publicDir: 'public',
   build: { outDir: 'dist', assetsDir: 'assets' },
-  server: { port: 5173, open: '/catalog.html' },
+  server: { port: 5173 },
 });

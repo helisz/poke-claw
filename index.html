@@ -2,56 +2,29 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
-    <meta name="theme-color" content="#cfe7f7" />
-    <title>poke-claw · 抓精灵球</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>宝可梦 · 抓娃娃</title>
+    <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
     <div id="app">
-      <!-- 顶部 HUD -->
       <header id="hud">
-        <div class="hud-left">
-          <div class="badge">SE586</div>
-        </div>
-        <div class="hud-right">
-          <div class="card">
-            <button id="reset-btn" class="close" title="重开">×</button>
-            <div class="row"><span class="k">回合</span><b id="hud-round">1</b></div>
-            <div class="pips">
-              <i class="pip"></i><i class="pip"></i><i class="pip"></i><i class="pip"></i><i class="pip"></i>
-            </div>
-            <div class="row big"><span class="k">捕获率</span><b id="hud-rate" class="hl">40%</b></div>
-            <div class="sep"></div>
-            <div class="row"><span class="ball small"></span><b id="hud-rare">普通</b></div>
-            <div class="row got"><span class="k">已收</span><b id="hud-got">0</b></div>
-          </div>
-        </div>
+        <span class="chip">剩余 <b id="hud-tries">8</b> 次</span>
+        <span class="chip">抓到 <b id="hud-caught">0</b> 只</span>
       </header>
 
-      <!-- 3D 舞台 -->
-      <div id="stage"></div>
+      <div id="stage"><div id="game"></div></div>
 
-      <!-- 提示 -->
-      <div id="toast"></div>
-
-      <!-- 卡片弹层 -->
-      <div id="card-overlay"></div>
-
-      <!-- 底部操作 -->
       <footer id="controls">
         <div class="dpad">
-          <button data-key="KeyW" class="d up">▲</button>
-          <div class="mid">
-            <button data-key="KeyA" class="d left">◀</button>
-            <button data-key="KeyS" class="d down">▼</button>
-            <button data-key="KeyD" class="d right">▶</button>
-          </div>
+          <button class="d" data-dir="left" aria-label="左">◀</button>
+          <button class="d" data-dir="right" aria-label="右">▶</button>
         </div>
-        <div class="center">
-          <button id="action-btn">停止钩爪</button>
-          <div class="hint">方向键移动爪子 · 空格下爪</div>
-        </div>
+        <button id="action-btn">下 爪</button>
       </footer>
+
+      <div id="card-overlay"></div>
+      <div id="toast"></div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
