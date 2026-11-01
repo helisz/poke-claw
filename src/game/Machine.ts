@@ -18,7 +18,7 @@ export function buildMachine(scene: THREE.Scene): THREE.Group {
 
   // 舱底
   const floor = new THREE.Mesh(new THREE.BoxGeometry(W, 0.04, D), mat(0xdfe9f7, { roughness: 0.9 }));
-  floor.position.y = -0.02;
+  floor.position.y = -0.06;
   root.add(floor);
 
   // 四根红柱

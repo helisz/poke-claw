@@ -7,7 +7,7 @@ export type PokeDef = { id: number; name: string; file: string; type?: string };
 /** 一颗精灵球：def 是里面装着的宝可梦，抓之前不显示 */
 export interface Ball {
   def: PokeDef;
-  mesh: any; // THREE.Sprite
+  mesh: any; // THREE.Points（共用）
   body: RAPIER.RigidBody;
 }
 

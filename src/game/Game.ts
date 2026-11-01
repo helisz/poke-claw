@@ -30,6 +30,9 @@ export class Game {
   private grabOffset = new THREE.Vector3();
   private lastTime = 0;
   private lastPool: PokeDef[] | null = null;
+  private ballViewScaleInit = false;
+  private pouring = false;
+  private pourUntil = 0;
 
   constructor(private mount: HTMLElement) {
     const w = mount.clientWidth || 520;
@@ -55,6 +58,7 @@ export class Game {
 
     window.addEventListener('resize', () => this.resize());
     this.bindInput();
+    this.ballViewScaleInit = true;
     void this.boot();
   }
 
@@ -69,17 +73,30 @@ export class Game {
     this.lastPool = all;
     this.spawnRound(all);
 
+    this.ballView.setViewportScale(this.mount.clientHeight / (0.9 * 2), this.camera.position.length());
     this.refreshHud();
     document.body.classList.add('ready');
     this.lastTime = performance.now();
     requestAnimationFrame(this.loop);
   }
 
-  /** 摆一批球：球里装着的宝可梦由 manifesto 随机抽，抓之前看不见 */
+  /**
+   * 倒球：从舱顶上方依次投放，靠重力+碰撞自然滚进球仓。
+   * 抓之前谁也看不见球里是谁。
+   */
   private spawnRound(all: PokeDef[]) {
     const pool = [...all].sort(() => Math.random() - 0.5).slice(0, BALL_COUNT);
-    const spots = BallView.layout(pool.length);
-    pool.forEach((def, i) => this.ballView.spawn(def, spots[i]));
+    const spanX = (CAB.width - 0.5) / 2;
+    const spanZ = (CAB.depth - 0.55) / 2;
+    pool.forEach((def, i) => {
+      // 从舱顶的三个投料口之一落下
+      const slot = i % 3;
+      const x = (slot - 1) * spanX * 0.75;
+      const z = (Math.random() - 0.5) * spanZ * 1.2;
+      this.ballView.spawn(def, { x, z }, 0);
+    });
+    this.pouring = true;
+    this.pourUntil = performance.now() + 2600;
   }
 
   private buildWalls() {
@@ -94,11 +111,11 @@ export class Game {
         .setTranslation(x, y, z);
       this.world.createCollider(desc, body);
     };
-    add(W, 0.02, D, 0, -0.16, 0); // 舱底
+    add(W, 0.02, D, 0, -0.06, 0); // 舱底（与视觉地面齐平）
     add(0.02, H, D, -W, H / 2, 0);
     add(0.02, H, D, W, H / 2, 0);
     add(W, H, 0.02, 0, H / 2, -D);
-    add(W, 0.2, 0.02, 0, -0.06, D);
+    add(W, 0.2, 0.02, 0, 0.02, D); // 前挡板
     add(W, 0.02, D, 0, CAB.ceilY + 0.1, 0);
   }
 
@@ -158,6 +175,10 @@ export class Game {
 
   private onAction() {
     if (this.phase !== 'move') return;
+    if (this.pouring) {
+      this.hud.toast('等球落稳…', 900);
+      return;
+    }
     this.phase = 'drop';
     this.claw.setOpen(1);
     this.updateActionLabel();
@@ -297,10 +318,7 @@ export class Game {
   }
 
   private removeBall(target: Ball) {
-    const idx = this.ballView.balls.indexOf(target);
-    if (idx >= 0) this.ballView.balls.splice(idx, 1);
-    this.scene.remove(target.mesh);
-    this.world.removeRigidBody(target.body);
+    this.ballView.remove(target);
   }
 
   private afterReveal() {
@@ -335,6 +353,8 @@ export class Game {
     this.camera.bottom = -halfH;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
+    // 1 米 = 多少像素（正交相机：视口高度 / 世界高度）
+    this.ballView?.setViewportScale(h / (0.9 * 2), this.camera.position.length());
   }
 
   private loop = (now: number) => {
