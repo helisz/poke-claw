@@ -16,10 +16,7 @@ export function buildMachine(scene: THREE.Scene): THREE.Group {
   base.position.y = -0.08;
   root.add(base);
 
-  // 舱底
-  const floor = new THREE.Mesh(new THREE.BoxGeometry(W, 0.04, D), mat(0xdfe9f7, { roughness: 0.9 }));
-  floor.position.y = -0.06;
-  root.add(floor);
+  // 舱底由 Basin（锥形盆底）单独构建，这里不再放平板
 
   // 四根红柱
   const pillarGeo = new THREE.BoxGeometry(0.09, H, 0.09);

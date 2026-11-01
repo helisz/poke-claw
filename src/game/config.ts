@@ -3,8 +3,8 @@ export const CAB = {
   width: 1.6, // x 内部宽
   depth: 1.1, // z 内部深
   floorY: 0, // 舱底
-  ceilY: 1.35, // 顶棚高度
-  glassY: 1.0,
+  ceilY: 1.35, // 顶棚高度（爪子初始悬挂点）
+  glassY: 1.0, // 玻璃仓视觉高度
 };
 
 // 爪子可移动包围盒
@@ -13,19 +13,28 @@ export const CLAW = {
   maxX: 0.62,
   minZ: -0.34,
   maxZ: 0.34,
-  restY: 0.92,
-  minY: 0.0,
+  restY: 1.1,
+  minY: 0.06,
   speed: 0.55, // m/s 水平
   dropSpeed: 0.9, // m/s 下降
   riseSpeed: 0.85, // m/s 上升
-  prongLen: 0.24,
+  openAngle: 0.62, // rad
+  prongLen: 0.19,
 };
 
-/** 精灵球 */
 export const BALL = {
   radius: 0.1,
-  /** 夹爪闭合时能罩住的水平半径 —— 手感的核心参数 */
   grabRadius: 0.21,
+};
+
+// 舱底呈浅锥形盆底：四壁向中心下倾，球受重力自然往中间聚集
+export const BASIN = {
+  rimY: -0.01, // 盆沿高度（贴四壁处）
+  centerY: -0.15, // 盆心最低点
+  rings: 14, // 同心环数（越大越平滑）
+  segs: 28, // 圆周分段
+  // 抓起来之后的脱手概率（0-1）
+  slipChance: 0.45,
 };
 
 export const PALETTE = {
@@ -44,10 +53,7 @@ export const PALETTE = {
   cyan: 0x7ee3e8,
 };
 
-/** 抓取判定：爪心是否罩住这个球（只看水平面，爪子够深就能夹到） */
-export function withinGrabReach(
-  claw: { x: number; z: number },
-  ball: { x: number; z: number },
-): boolean {
+/** 爪心是否能罩住球（只看水平距离，容错宽松） */
+export function withinGrabReach(claw: { x: number; z: number }, ball: { x: number; z: number }): boolean {
   return Math.hypot(claw.x - ball.x, claw.z - ball.z) < BALL.grabRadius;
 }

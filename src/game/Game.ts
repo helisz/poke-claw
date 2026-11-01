@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { BALL, CAB, CLAW, withinGrabReach } from './config';
+import { BALL, BASIN, CAB, CLAW, withinGrabReach } from './config';
+import { Basin, normRadius } from './Basin';
 import { Claw } from './Claw';
 import { BallView } from './Balls';
 import { buildBackdrop, buildLights, buildMachine } from './Machine';
@@ -20,6 +21,7 @@ export class Game {
   private world!: RAPIER.World;
   private claw: Claw;
   private ballView!: BallView;
+  private basin!: Basin;
   private hud = new Hud();
 
   private phase: Phase = 'move';
@@ -30,6 +32,9 @@ export class Game {
   private grabOffset = new THREE.Vector3();
   private lastTime = 0;
   private freezeAt = 0;
+  private willSlip = false;
+  private slipAt = 0;
+  private slippedThisRound = false;
   private lastPool: PokeDef[] | null = null;
 
   constructor(private mount: HTMLElement) {
@@ -63,6 +68,7 @@ export class Game {
     await RAPIER.init();
     this.world = new RAPIER.World({ x: 0, y: -9.82, z: 0 });
     this.buildWalls();
+    this.basin = new Basin(this.scene, this.world);
     this.ballView = new BallView(this.scene, this.world);
 
     const manifest = await (await fetch('./assets/pokemon-manifest.json')).json();
@@ -106,7 +112,6 @@ export class Game {
         .setTranslation(x, y, z);
       this.world.createCollider(desc, body);
     };
-    add(W, 0.02, D, 0, -0.06, 0); // 舱底（与视觉地面齐平）
     add(0.02, H, D, -W, H / 2, 0);
     add(0.02, H, D, W, H / 2, 0);
     add(W, H, 0.02, 0, H / 2, -D);
@@ -230,6 +235,15 @@ export class Game {
           this.grabbed.body.setGravityScale(0, true);
           this.grabbed.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
           this.grabbed.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+          // 球越靠盆边越容易滑脱；盆心抓得更牢
+          const r = normRadius(t.x, t.z);
+          // 上升起点是爪子最低点，脱手点取中间高度区段
+          const riseFrom = Math.max(-0.05, p.y);
+          const span = CLAW.restY - riseFrom;
+          this.slipAt = riseFrom + span * (0.25 + Math.random() * 0.5);
+          this.willSlip = Math.random() < BASIN.slipChance * (0.55 + r * 1.1);
+        } else {
+          this.willSlip = false;
         }
         this.phase = 'rising';
         this.updateActionLabel();
@@ -241,17 +255,40 @@ export class Game {
       p.y = Math.min(CLAW.restY, p.y + CLAW.riseSpeed * dt);
       this.claw.setPosition(p.x, p.y, p.z);
       if (this.grabbed) {
-        const t = this.grabbed.body.translation();
-        const tx = p.x + this.grabOffset.x;
-        const ty = p.y + Math.min(this.grabOffset.y, -0.08);
-        const tz = p.z + this.grabOffset.z;
-        this.grabbed.body.setTranslation(
-          { x: t.x + (tx - t.x) * 0.4, y: t.y + (ty - t.y) * 0.5, z: t.z + (tz - t.z) * 0.4 },
-          true,
-        );
+        // 上升途中脱手：球掉回盆里
+        if (this.willSlip && p.y >= this.slipAt) {
+          this.dropGrabbed();
+          this.willSlip = false;
+        } else {
+          const t = this.grabbed.body.translation();
+          // 抓持本身不稳定：轻微摇摆，越靠边晃得越厉害
+          const wob = Math.sin(p.y * 26) * 0.012 * (1 + normRadius(t.x, t.z));
+          const tx = p.x + this.grabOffset.x + wob;
+          const ty = p.y + Math.min(this.grabOffset.y, -0.08);
+          const tz = p.z + this.grabOffset.z + wob * 0.6;
+          this.grabbed.body.setTranslation(
+            { x: t.x + (tx - t.x) * 0.4, y: t.y + (ty - t.y) * 0.5, z: t.z + (tz - t.z) * 0.4 },
+            true,
+          );
+        }
       }
       if (p.y >= CLAW.restY) this.finishDrop();
     }
+  }
+
+  /** 脱手：球恢复重力掉回盆里，爪子空手继续上升 */
+  private dropGrabbed() {
+    const b = this.grabbed;
+    if (!b) return;
+    b.body.setGravityScale(1, true);
+    b.body.setLinvel({ x: (Math.random() - 0.5) * 0.2, y: 0, z: (Math.random() - 0.5) * 0.2 }, true);
+    b.body.setAngvel({ x: Math.random() * 2, y: 0, z: Math.random() * 2 }, true);
+    this.grabbed = null;
+    this.slippedThisRound = true;
+    this.claw.setOpen(1);
+    this.hud.toast('滑了！球掉回去了', 1100);
+    // 让吸附的物理继续跑
+    this.freezeAt = 0;
   }
 
   /** 抓起来=得手：球消失，弹出卡片 */
@@ -263,9 +300,12 @@ export class Game {
 
     if (!got) {
       this.updateActionLabel();
-      this.hud.toast('爪子空了…再试试');
+      // 滑脱已经在 dropGrabbed 里提示过，这里只处理真的夹空
+      if (!this.slippedThisRound) this.hud.toast('爪子空了…再试试');
+      this.slippedThisRound = false;
       return;
     }
+    this.slippedThisRound = false;
 
     // 球飞向取物口后消失
     const t = got.body.translation();
